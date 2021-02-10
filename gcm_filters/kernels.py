@@ -11,7 +11,7 @@ from .gpu_compat import ArrayType, get_array_module
 
 
 # not married to the term "Cartesian"
-GridType = enum.Enum("GridType", ["CARTESIAN", "CARTESIAN_WITH_LAND"])
+GridType = enum.Enum("GridType", ["CARTESIAN", "CARTESIAN_WITH_LAND","CARTESIAN_WITH_LAND_new"])
 
 ALL_KERNELS = {}  # type: Dict[GridType, Any]
 
@@ -48,9 +48,8 @@ class CartesianLaplacian(BaseLaplacian):
 
 ALL_KERNELS[GridType.CARTESIAN] = CartesianLaplacian
 
-
 @dataclass
-class CartesianLaplacianWithLandMask(BaseLaplacian):
+class CartesianLaplacianWithLandMask_new(BaseLaplacian):
     """̵Laplacian for regularly spaced Cartesian grids with land mask.
 
     Attributes
@@ -78,6 +77,44 @@ class CartesianLaplacianWithLandMask(BaseLaplacian):
 
         out = (
             -self.wet_fac * out
+            + np.roll(out, -1, axis=-1)
+            + np.roll(out, 1, axis=-1)
+            + np.roll(out, -1, axis=-2)
+            + np.roll(out, 1, axis=-2)
+        )
+
+        out = self.wet_mask * out
+        return out
+
+ALL_KERNELS[GridType.CARTESIAN_WITH_LAND_new] = CartesianLaplacianWithLandMask_new
+
+
+@dataclass
+class CartesianLaplacianWithLandMask(BaseLaplacian):
+    """̵Laplacian for regularly spaced Cartesian grids with land mask.
+
+    Attributes
+    ----------
+    wet_mask: Mask array, 1 for ocean, 0 for land
+    """
+
+    wet_mask: ArrayType
+
+    def __call__(self, field: ArrayType):
+        np = get_array_module(field)
+
+        out = np.nan_to_num(field)  # set all nans to zero
+        out = self.wet_mask * out
+
+        fac = (
+            np.roll(self.wet_mask, -1, axis=-1)
+            + np.roll(self.wet_mask, 1, axis=-1)
+            + np.roll(self.wet_mask, -1, axis=-2)
+            + np.roll(self.wet_mask, 1, axis=-2)
+        )
+
+        out = (
+            - fac * out
             + np.roll(out, -1, axis=-1)
             + np.roll(out, 1, axis=-1)
             + np.roll(out, -1, axis=-2)
