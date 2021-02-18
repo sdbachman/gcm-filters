@@ -40,7 +40,7 @@ class CartesianLaplacian(BaseLaplacian):
     def __call__(self, field: ArrayType):
         np = get_array_module(field)
         return (
-            (np.roll(self.kappa_w, -1, axis=-1)
+            -(np.roll(self.kappa_w, -1, axis=-1)
             + np.roll(self.kappa_w, 1, axis=-1)
             + np.roll(self.kappa_s, -1, axis=-2)
             + np.roll(self.kappa_s, 1, axis=-2))
