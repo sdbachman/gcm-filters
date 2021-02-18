@@ -40,11 +40,15 @@ class CartesianLaplacian(BaseLaplacian):
     def __call__(self, field: ArrayType):
         np = get_array_module(field)
         return (
-            -4 * field
-            + np.roll(field, -1, axis=-1)
-            + np.roll(field, 1, axis=-1)
-            + np.roll(field, -1, axis=-2)
-            + np.roll(field, 1, axis=-2)
+            (np.roll(self.kappa_w, -1, axis=-1)
+            + np.roll(self.kappa_w, 1, axis=-1)
+            + np.roll(self.kappa_s, -1, axis=-2)
+            + np.roll(self.kappa_s, 1, axis=-2))
+            * field
+            + np.roll(field*self.kappa_w, -1, axis=-1)
+            + np.roll(field*self_kappa_w, 1, axis=-1)
+            + np.roll(field*self.kappa_s, -1, axis=-2)
+            + np.roll(field*self.kappa_s, 1, axis=-2)
         )
 
 
@@ -66,10 +70,10 @@ class CartesianLaplacianWithLandMask(BaseLaplacian):
         np = get_array_module(self.wet_mask)
 
         self.wet_fac = (
-            np.roll(self.wet_mask, -1, axis=-1)
-            + np.roll(self.wet_mask, 1, axis=-1)
-            + np.roll(self.wet_mask, -1, axis=-2)
-            + np.roll(self.wet_mask, 1, axis=-2)
+            np.roll(self.wet_mask*self.kappa_w, -1, axis=-1)
+            + np.roll(self.wet_mask*self.kappa_w, 1, axis=-1)
+            + np.roll(self.wet_mask*self.kappa_s, -1, axis=-2)
+            + np.roll(self.wet_mask*self.kappa_s, 1, axis=-2)
         )
 
     def __call__(self, field: ArrayType):
@@ -80,10 +84,10 @@ class CartesianLaplacianWithLandMask(BaseLaplacian):
 
         out = (
             -self.wet_fac * out
-            + np.roll(out, -1, axis=-1)
-            + np.roll(out, 1, axis=-1)
-            + np.roll(out, -1, axis=-2)
-            + np.roll(out, 1, axis=-2)
+            + np.roll(out*self.kappa_w, -1, axis=-1)
+            + np.roll(out*self.kappa_w, 1, axis=-1)
+            + np.roll(out*self.kappa_s, -1, axis=-2)
+            + np.roll(out*self.kappa_s, 1, axis=-2)
         )
 
         out = self.wet_mask * out
@@ -105,6 +109,8 @@ class IrregularCartesianLaplacianWithLandMask(BaseLaplacian):
     dxs: x-spacing centered at southern cell edge
     dys: y-spacing centered at southern cell edge
     area: cell area
+    kappa_w: zonal diffusivity centered at western cell edge
+    kappa_s: meridional diffusivity centered at southern cell edge
     """
 
     wet_mask: ArrayType
@@ -113,6 +119,8 @@ class IrregularCartesianLaplacianWithLandMask(BaseLaplacian):
     dxs: ArrayType
     dys: ArrayType
     area: ArrayType
+    kappa_w: ArrayType
+    kappa_s: ArrayType
 
     def __post_init__(self):
         np = get_array_module(self.wet_mask)
@@ -120,7 +128,7 @@ class IrregularCartesianLaplacianWithLandMask(BaseLaplacian):
         self.w_wet_mask = self.wet_mask * np.roll(self.wet_mask, -1, axis=-1)
         self.s_wet_mask = self.wet_mask * np.roll(self.wet_mask, -1, axis=-2)
 
-    def __call__(self, field: ArrayType, kappa_w=1, kappa_s=1):
+    def __call__(self, field: ArrayType):
         np = get_array_module(field)
 
         out = np.nan_to_num(field)
@@ -132,8 +140,8 @@ class IrregularCartesianLaplacianWithLandMask(BaseLaplacian):
             (out - np.roll(out, -1, axis=-2)) / self.dys * self.dxs
         )  # flux across southern cell edge
 
-        wflux = kappa_w * wflux * self.w_wet_mask  # no-flux boundary condition
-        sflux = kappa_s * sflux * self.s_wet_mask  # no-flux boundary condition
+        wflux = self.kappa_w * wflux * self.w_wet_mask  # no-flux boundary condition
+        sflux = self.kappa_s * sflux * self.s_wet_mask  # no-flux boundary condition
 
         out = np.roll(wflux, 1, axis=-1) - wflux + np.roll(sflux, 1, axis=-2) - sflux
 
