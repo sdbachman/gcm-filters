@@ -4,7 +4,7 @@ Core smoothing routines that operate on 2D arrays.
 import enum
 
 from abc import ABC
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, Dict
 
 from .gpu_compat import ArrayType, get_array_module
@@ -109,9 +109,13 @@ class IrregularCartesianLaplacianWithLandMask(BaseLaplacian):
     dxs: x-spacing centered at southern cell edge
     dys: y-spacing centered at southern cell edge
     area: cell area
-    kappa_w: zonal diffusivity centered at western cell edge
-    kappa_s: meridional diffusivity centered at southern cell edge
+
+    Optional arguments:
+    kappa_w: zonal diffusivity centered at western cell edge (default=1)
+    kappa_s: meridional diffusivity centered at southern cell edge (default=1)
+
     """
+    from typing import Optional
 
     wet_mask: ArrayType
     dxw: ArrayType
@@ -119,14 +123,14 @@ class IrregularCartesianLaplacianWithLandMask(BaseLaplacian):
     dxs: ArrayType
     dys: ArrayType
     area: ArrayType
-    kappa_w: ArrayType
-    kappa_s: ArrayType
+    kappa_w: ArrayType = 1. #field(default=1., repr=False)
+    kappa_s: ArrayType = 1. #field(default=1., repr=False)
 
     def __post_init__(self):
         np = get_array_module(self.wet_mask)
 
-        self.w_wet_mask = self.wet_mask * np.roll(self.wet_mask, -1, axis=-1)
-        self.s_wet_mask = self.wet_mask * np.roll(self.wet_mask, -1, axis=-2)
+        self.kappa_w_mask = self.kappa_w * self.wet_mask * np.roll(self.wet_mask, -1, axis=-1)
+        self.kappa_s_mask = self.kappa_s * self.wet_mask * np.roll(self.wet_mask, -1, axis=-2)
 
     def __call__(self, field: ArrayType):
         np = get_array_module(field)
@@ -140,8 +144,8 @@ class IrregularCartesianLaplacianWithLandMask(BaseLaplacian):
             (out - np.roll(out, -1, axis=-2)) / self.dys * self.dxs
         )  # flux across southern cell edge
 
-        wflux = self.kappa_w * wflux * self.w_wet_mask  # no-flux boundary condition
-        sflux = self.kappa_s * sflux * self.s_wet_mask  # no-flux boundary condition
+        wflux = wflux * self.kappa_w_mask  # no-flux boundary condition
+        sflux = sflux * self.kappa_s_mask  # no-flux boundary condition
 
         out = np.roll(wflux, 1, axis=-1) - wflux + np.roll(sflux, 1, axis=-2) - sflux
 
